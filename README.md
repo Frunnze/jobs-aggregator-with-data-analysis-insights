@@ -4,11 +4,13 @@
 Why this application is relevant?
 <br>
 - Relevance of this app is determined by the lack of data insights (skills demand, average experience needed, salary expectations, etc.) about jobs on other similar platforms.
+- It is more efficient and saves time when searching for jobs in only one place.
+- Gives users confidence that they will not miss new opportunities as the app will aggregate jobs from multiple sources and notify users about them.
 
 Why this application requires a microservice architecture?
 - There are multiple platforms from where to gather data, which means multiple web-scrapers, thus, microservices.
 - Need in a service for answering user requests like login, subscription to specific job types, searching jobs data, processing and generating data insights based on the scraped data.
-- Similar platforms that employ microservices and are similar to the mentioned idea are LinkedIn, Indeed, and Glassdoor. 
+- Similar platforms that employ microservices and are similar to the mentioned idea are LinkedIn, Indeed, and Glassdoor.
 
 ## Service Boundaries
 - Web-scrapers service
@@ -36,7 +38,7 @@ Why this application requires a microservice architecture?
     - Redis
     - Websocket with gRPC
 - Gateway
-    - JavaScript
+    - JavaScript (RESTful API with Express.js)
 
 ## Data Management
 How data is managed across microservices?
