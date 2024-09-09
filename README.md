@@ -29,15 +29,16 @@ Why this application requires a microservice architecture?
 ## Technology Stack and Communication Patterns
 - Web-scraper service
     - Python (BeautifulSoup4/Selenium)
-    - PostgreSQL (with SQLAlchemy)
+    - PostgreSQL (with SQLAlchemy and TCP)
 - User service
     - Python (RESTful API with Flask)
     - PostgreSQL (with SQLAlchemy)
     - Redis
+    - Websocket with gRPC
 - Gateway
     - JavaScript
 
-## Design Data Management
+## Data Management
 How data is managed across microservices?
 - Web-scrapers will extract and save jobs data in a database;
 - User service will access and process the data from the web-scrapers' database;
@@ -46,37 +47,37 @@ How data is managed across microservices?
 
 All endpoints:
 ```
-'endpoint': '/sign-up',
-'method': 'POST',
-'received_data': json {
+endpoint: "/sign-up",
+method: "POST",
+received_data: json {
     "name": "string",
     "email": "string",
     "password": "string"
 },
-'responses':
+responses:
     201: json {"msg": "Successful sign up"},
     400: json {"msg": "Invalid email"},
     400: json {"msg": "Password too short"}
 
 
-'endpoint': '/login',
-'method': 'POST',
-'received_data': json {
+endpoint: "/login",
+method: "POST",
+received_data: json {
     "email": "string",
     "password": "string"
 },
-'responses':
+responses:
     200: json {"msg": "Successful login"},
     401: json {"msg": "Invalid email or password"}
 
 
-'endpoint': '/find-jobs',
-'method': 'GET',
-'received_data': query parameters
+endpoint: "/find-jobs",
+method: "GET",
+received_data: query parameters
     "keywords": "string",
     "page": "integer",
     "per_page": "integer"
-'responses':
+responses:
     200: json [
         {
             "job_id": "string",
@@ -90,37 +91,37 @@ All endpoints:
     404: json {"msg": "No jobs found"}
 
 
-'endpoint': '/generate-insight-skills-by-demand/{keywords}',
-'method': 'GET',
-'received_data': path parameter
+endpoint: "/generate-insight-skills-by-demand/{keywords}",
+method: "GET",
+received_data: path parameter
     "keywords": "string"
-'response':
+response:
     200: json {
         "skill_name": "integer"
     }
 
 
-'endpoint': '/generate-insight-average-experience/{keywords}',
-'method': 'GET',
-'received_data': path parameter 
+endpoint: "/generate-insight-average-experience/{keywords}",
+method: "GET",
+received_data: path parameter 
     "keywords": "string"
-'response':
+response:
     200: json {
         "average_experience": "integer"
     }
 
 
-'endpoint': '/subscribe/{tag}',
-'method': 'POST',
-'received_data': path parameter
+endpoint: "/subscribe/{tag}",
+method: "POST",
+received_data: path parameter
     "tag": "string"
-'response':
+response:
     200: json {"msg": "Subscribed to the tag!"}
 
 
-'endpoint': '/status',
-'method': 'GET',
-'response':
+endpoint: "/status",
+method: "GET",
+response:
     200: json {"msg": "string" // status of the service"}
 ```
 
@@ -135,3 +136,5 @@ RUN pip install --trusted-host pypi.python.org -r requirements.txt
 COPY . .
 ENTRYPOINT ["python", "app.py"]
 ```
+
+Scaling is going to be done through Kubernetes.
