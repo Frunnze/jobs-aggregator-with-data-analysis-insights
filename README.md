@@ -36,7 +36,7 @@ Why this application requires a microservice architecture?
     - Python (RESTful API with Flask)
     - PostgreSQL (with SQLAlchemy)
     - Redis
-    - Websocket with gRPC
+    - Websocket (websockets library)
 - Gateway
     - JavaScript (RESTful API with Express.js)
 
@@ -118,7 +118,7 @@ method: "POST",
 received_data: path parameter
     "tag": "string"
 response:
-    200: json {"msg": "Subscribed to the tag!"}
+    200: json {"msg": "string" // websocket address}
 
 
 endpoint: "/status",
@@ -128,8 +128,8 @@ response:
 ```
 
 ## Deployment and Scaling
-Deployment is going to be achieved by creating containers with Docker for each service.
-Example:
+Deployment is going to be achieved by creating containers with Docker and using Docker compose for management and scaling.
+Example docker file:
 ```
 FROM python:3.12-alpine
 WORKDIR /app
@@ -139,4 +139,13 @@ COPY . .
 ENTRYPOINT ["python", "app.py"]
 ```
 
-Scaling is going to be done through Kubernetes.
+Example docker compose file:
+```
+services:
+  web:
+    build: .
+    ports:
+      - "8000:5000"
+  redis:
+    image: "redis:alpine"
+```
