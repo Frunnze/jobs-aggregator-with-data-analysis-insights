@@ -1,0 +1,66 @@
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000" # Expose gateway on port 3000
+    environment:
+      - USER_SERVICE_URL=http://user-service:8080
+      - SCRAPER_SERVICE_URL=http://scraper-service:8000
+    depends_on:
+      - user-service
+      - scraper-service
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8080:8080" # Expose user service on port 8080
+    environment:
+      - DATABASE_URL=postgresql://user:password@user-db:5432/userdb
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - user-db
+      - redis
+
+  scraper-service:
+    build: ./scraper-service
+    ports:
+      - "8000:8000" # Expose scraper service on port 8000
+    environment:
+      - USER_SERVICE=http://user-service:8080
+      - DATABASE_URL=postgresql://scraper:password@scraper-db:5432/scraperdb
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - scraper-db
+      - redis
+      - user-service
+
+  user-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: userdb
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  scraper-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: scraperdb
+    volumes:
+      - scraper_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  user_db_data:
+  scraper_db_data:
