@@ -1,10 +1,12 @@
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 import os
 from flask_cors import CORS
 from flask_socketio import SocketIO
 import redis
+import sys
+import requests
 
 
 db = SQLAlchemy()
@@ -17,7 +19,7 @@ redis_client = redis.StrictRedis(
 )
 
 load_dotenv()
-DATABASE_URL = os.environ["DATABASE_URL"]
+#DATABASE_URL = os.environ["DATABASE_URL"]
 
 def create_app():
     # Create and configure the flask app
@@ -32,7 +34,7 @@ def create_app():
     from . import websocket
 
     # scraped real-estate data
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL#"sqlite:///user.db"
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
     db.init_app(app)
 
     # Register the apis
@@ -44,5 +46,20 @@ def create_app():
     # Create the dbs and add initial tables values
     with app.app_context():
         db.create_all()
+
+    # Register in the service discovery
+    address =  os.getenv("USER_SERVICE_ADDRESS")
+    port = os.getenv("USER_SERVICE_PORT")
+    response = requests.post(
+        url=os.getenv("SERVICE_DISCOVERY") + "/add-service", 
+        json={
+            "name": "user-service", 
+            "address": address,
+            "port": port
+        }
+    )
+    if not (response.status_code >= 200 and response.status_code < 300): 
+        print(f"User service: {address}:{port} could not register to the service discovery!")
+        sys.exit(1)
 
     return app

@@ -1,13 +1,31 @@
 const express = require('express');
 const axios = require('axios');
 const rateLimit = require('express-rate-limit');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+
+
+// gRPC client setup for service discovery
+const packageDefinition = protoLoader.loadSync('service_discovery.proto');
+const serviceDiscoveryProto = grpc.loadPackageDefinition(packageDefinition);
+
+// Adjust the client initialization
+const client = new serviceDiscoveryProto.ServiceDiscovery('localhost:5000', grpc.credentials.createInsecure());
+
+// Function to get service info dynamically
+async function getServiceInfo(serviceName) {
+  return new Promise((resolve, reject) => {
+    client.GetServiceInfo({ serviceName }, (err, response) => {
+      if (err) {
+        return reject(err.details);
+      }
+      resolve(response);
+    });
+  });
+}
 
 const app = express();
 app.use(express.json());
-
-// Configuration
-const SERVICE1_URL = process.env.USER_SERVICE_URL;
-const SERVICE2_URL =  process.env.SCRAPER_SERVICE_URL;
 
 // Middleware to handle concurrent tasks limit
 const limiter = rateLimit({
@@ -22,7 +40,8 @@ app.use(limiter);
 // Gateway routes
 app.post('/sign-up', async (req, res) => {
     try {
-        const { data } = await axios.post(`${SERVICE1_URL}/sign-up`, req.body);
+        const { serviceAddress, servicePort } = await getServiceInfo('user-service');
+        const { data } = await axios.post(`${serviceAddress}:${servicePort}/sign-up`, req.body);
         res.status(201).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -31,7 +50,9 @@ app.post('/sign-up', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     try {
-        const { data } = await axios.post(`${SERVICE1_URL}/login`, req.body);
+        const { serviceAddress, servicePort } = await getServiceInfo('user-service');
+        console.log(serviceAddress, servicePort);
+        const { data } = await axios.post(`${serviceAddress}:${servicePort}/login`, req.body);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -40,7 +61,8 @@ app.post('/login', async (req, res) => {
 
 app.get('/get-subscriptions/:user_id', async (req, res) => {
     try {
-        const { data } = await axios.get(`${SERVICE1_URL}/get-subscriptions/${req.params.user_id}`);
+        const { serviceAddress, servicePort } = await getServiceInfo('user-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/get-subscriptions/${req.params.user_id}`);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -49,8 +71,9 @@ app.get('/get-subscriptions/:user_id', async (req, res) => {
 
 app.get('/find-jobs', async (req, res) => {
     try {
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
         const { title } = req.query;
-        const { data } = await axios.get(`${SERVICE2_URL}/find-jobs?title=${title}`);
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/find-jobs?title=${title}`);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -59,7 +82,8 @@ app.get('/find-jobs', async (req, res) => {
 
 app.get('/generate-insight-skills-by-demand/:keywords', async (req, res) => {
     try {
-        const { data } = await axios.get(`${SERVICE2_URL}/generate-insight-skills-by-demand/${req.params.keywords}`);
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/generate-insight-skills-by-demand/${req.params.keywords}`);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -68,7 +92,28 @@ app.get('/generate-insight-skills-by-demand/:keywords', async (req, res) => {
 
 app.get('/all-skills-by-demand', async (req, res) => {
     try {
-        const { data } = await axios.get(`${SERVICE2_URL}/all-skills-by-demand`);
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/all-skills-by-demand`);
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(error.response?.status || 500).json({ msg: error.message });
+    }
+});
+
+app.get('/skills-by-salary', async (req, res) => {
+    try {
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/skills-by-salary`);
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(error.response?.status || 500).json({ msg: error.message });
+    }
+});
+
+app.get('/average-job-salary', async (req, res) => {
+    try {
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/average-job-salary`);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
@@ -77,28 +122,24 @@ app.get('/all-skills-by-demand', async (req, res) => {
 
 app.get('/generate-insight-average-experience/:keywords', async (req, res) => {
     try {
-        const { data } = await axios.get(`${SERVICE2_URL}/generate-insight-average-experience/${req.params.keywords}`);
+        const { serviceAddress, servicePort } = await getServiceInfo('scraper-service');
+        const { data } = await axios.get(`${serviceAddress}:${servicePort}/generate-insight-average-experience/${req.params.keywords}`);
         res.status(200).json(data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
     }
 });
 
-app.get('/status', async (req, res) => {
+app.get("/status", async (req, res) => {
     try {
-        const service1Status = await axios.get(`${SERVICE1_URL}/status`);
-        const service2Status = await axios.get(`${SERVICE2_URL}/status`);
-        res.status(200).json({
-            service1: service1Status.data,
-            service2: service2Status.data,
-        });
-    } catch (error) {
-        res.status(500).json({ msg: 'One or more services are down.' });
-    }
+        res.status(200).json({msg: "Gateway is running!"});
+    } catch {
+        res.status(500).json({ msg: "Gateway is down!"});
+    };
 });
 
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Gateway server running on port ${PORT}`);
 });

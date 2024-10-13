@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import func
 import json
 import time
+from fuzzywuzzy import fuzz
 
 from .. import db, redis_client
 from ..models import Skill, Job
@@ -29,8 +30,12 @@ def check_timeout(response):
 @data.route('/find-jobs', methods=['GET'])
 def find_jobs():
     title = request.args.get('title')
-    if title:
-        jobs = Job.query.filter(Job.title.ilike(f"%{title}%")).all()
+    jobs = Job.query.all()
+    similar_jobs = []
+    for job in jobs:
+        ratio = fuzz.token_set_ratio(title, job.title)
+        if ratio >= 80:
+            similar_jobs.append(job)
 
     # Prepare the response data
     jobs_data = [
@@ -44,7 +49,7 @@ def find_jobs():
             'date': job.date,
             'skills': [skill.name for skill in job.skills]
         }
-        for job in jobs
+        for job in similar_jobs
     ]
 
     return jsonify({
@@ -55,11 +60,16 @@ def find_jobs():
 
 @data.route('/generate-insight-skills-by-demand/<string:keywords>', methods=['GET'])
 def generate_insight_skills_by_demand(keywords):
-    jobs_with_keyword = Job.query.filter(Job.title.ilike(f"%{keywords}%")).all()
+    jobs = Job.query.all()
+    similar_jobs = []
+    for job in jobs:
+        ratio = fuzz.token_set_ratio(keywords, job.title)
+        if ratio >= 85:
+            similar_jobs.append(job)
     
     # Get all related skills for those jobs
     skill_counts = {}
-    for job in jobs_with_keyword:
+    for job in similar_jobs:
         for skill in job.skills:
             if skill.name in skill_counts:
                 skill_counts[skill.name] += skill.counter
@@ -71,7 +81,7 @@ def generate_insight_skills_by_demand(keywords):
     
     return jsonify({
         'skills_by_demand': sorted_skills,
-        'total_jobs': len(jobs_with_keyword)
+        'total_jobs': len(similar_jobs)
     })
 
 
@@ -86,10 +96,10 @@ def all_skills_by_demand():
         skills = (
             db.session.query(
                 Skill.name,
-                func.sum(Skill.counter).label('total_demand')
+                func.count(Skill.name).label('total_demand')
             )
             .group_by(Skill.name)
-            .order_by(func.sum(Skill.counter).desc())
+            .order_by(func.count(Skill.name).desc())
             .all()
         )
 
@@ -108,11 +118,13 @@ def all_skills_by_demand():
 
 @data.route('/generate-insight-average-experience/<string:keywords>', methods=['GET'])
 def generate_insight_average_experience(keywords):
-    if keywords == "all":
-        jobs_with_keyword = Job.query.all()
-    else:
-        jobs_with_keyword = Job.query.filter(Job.title.ilike(f"%{keywords}%")).all()
-    
+    jobs = Job.query.all()
+    jobs_with_keyword = []
+    for job in jobs:
+        ratio = fuzz.token_set_ratio(keywords, job.title)
+        if ratio >= 85:
+            jobs_with_keyword.append(job)
+
     if jobs_with_keyword:
         total_experience = sum(job.experience for job in jobs_with_keyword)
         average_experience = total_experience / len(jobs_with_keyword)
@@ -128,3 +140,118 @@ def generate_insight_average_experience(keywords):
 @data.route('/status', methods=['GET'])
 def status():
     return jsonify({"msg": "Service is running"}), 200
+
+
+@data.route('/skills-by-salary', methods=['GET'])
+def list_skills_by_salary():
+    # Query the database to get all jobs with their associated skills
+    jobs = Job.query.all()
+    
+    # Dictionary to hold skills and their corresponding salaries
+    skills_salary = {}
+
+    # Populate the dictionary with skills and their associated job salaries
+    for job in jobs:
+        if job.salary is not None:
+            # Normalize currency to lowercase for consistency
+            currency = job.currency.lower()
+            for skill in job.skills:
+                if skill.name not in skills_salary:
+                    skills_salary[skill.name] = {"usd": [], "mdl": [], "euro": []}
+                if currency in skills_salary[skill.name]:
+                    skills_salary[skill.name][currency].append(job.salary)
+
+    # Create a response list to contain average salary for each skill
+    result = []
+    for skill, salaries in skills_salary.items():
+        mdl_avg = sum(salaries["mdl"]) / len(salaries["mdl"]) if salaries["mdl"] else 0
+        usd_avg = sum(salaries["usd"]) / len(salaries["usd"]) if salaries["usd"] else 0
+        euro_avg = sum(salaries["euro"]) / len(salaries["euro"]) if salaries["euro"] else 0
+
+        jobs_num = len(salaries["euro"]) + len(salaries["usd"]) + len(salaries["mdl"])
+        if len(salaries["euro"]) >= 10 and len(salaries["usd"]) >= 10 and len(salaries["mdl"]) >= 10:
+            result.append({
+                "skill": skill,
+                "avg": (euro_avg + usd_avg * 0.91 + mdl_avg * 0.052) / 3,
+                "jobs": jobs_num
+            })
+
+    # Sort skills by general coefficient in descending order
+    result.sort(key=lambda x: x['avg'], reverse=True)
+
+    return jsonify(result)
+
+
+@data.route('/average-job-salary', methods=['GET'])
+def average_job_salary():
+    jobs = Job.query.all()
+
+    total_salary, salary_count = 0, 0
+    for job in jobs:
+        if job.salary is not None:
+            if job.currency == "usd":
+                total_salary += job.salary * 17.66
+            elif job.currency == "euro":
+                total_salary += job.salary * 19.33
+            elif job.currency == "mdl":
+                total_salary += job.salary
+            salary_count += 1
+
+    # Calculate average salary
+    average_salary = total_salary / salary_count if salary_count > 0 else 0
+
+    return jsonify({
+        'average_salary': average_salary,
+        'jobs_num': salary_count
+    })
+
+
+@data.route('/average-job-salary-by-experience', methods=['GET'])
+def average_job_salary_by_experience():
+    experience = float(request.args.get("experience"))
+    jobs = Job.query.all()
+    
+    total_salary = 0
+    salary_count = 0
+
+    for job in jobs:
+        if job.salary is not None \
+            and job.experience <= experience + 0.25 \
+            and job.experience >= experience - 0.25:
+            if job.currency == "mdl":
+                total_salary += job.salary
+            elif job.currency == "euro":
+                total_salary += job.salary * 19.28
+            elif job.currency == "usd":
+                total_salary += job.salary * 17.56
+            salary_count += 1
+
+    # Calculate average salary
+    average_salary = total_salary / salary_count if salary_count > 0 else 0
+
+    return jsonify({
+        'average_salary': average_salary,
+        'jobs_num': salary_count
+    })
+
+
+@data.route('/avg-salary/<string:keywords>', methods=['GET'])
+def avg_salary_by_keywords(keywords):
+    jobs = Job.query.all()
+    total_salary, salary_count = 0, 0
+    for job in jobs:
+        ratio = fuzz.token_set_ratio(keywords, job.title)
+        if ratio >= 85:
+            if job.salary is not None:
+                if job.currency == "usd":
+                    total_salary += job.salary * 17.66
+                elif job.currency == "euro":
+                    total_salary += job.salary * 19.33
+                elif job.currency == "mdl":
+                    total_salary += job.salary
+                salary_count += 1
+    average_salary = total_salary / salary_count if salary_count > 0 else 0
+    return jsonify({
+        'average_salary': average_salary,
+        'jobs_num': salary_count
+    })

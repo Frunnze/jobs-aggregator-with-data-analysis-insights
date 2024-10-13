@@ -8,3 +8,6 @@ Werkzeug==3.0.4
 Flask-SocketIO
 redis
 psycopg2-binary
+pytest 
+pytest-flask
+flask-testing
