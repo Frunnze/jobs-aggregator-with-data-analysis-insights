@@ -1,14 +1,23 @@
 syntax = "proto3";
 
-service ServiceDiscovery {
-    rpc GetServiceInfo(ServiceInfoRequest) returns (ServiceInfoResponse);
+service ServiceInfo {
+  rpc GetServices (Empty) returns (ServiceResponse);
 }
 
-message ServiceInfoRequest {
-    string serviceName = 1; // Name of the service to query
+message Empty {}
+
+message Service {
+  string serviceAddress = 1;
+  int32 servicePort = 2;
 }
 
-message ServiceInfoResponse {
-    string serviceAddress = 1; // Address of the service
-    int32 servicePort = 2;     // Port of the service
+// ServiceEntry represents each service with its name and a list of service instances
+message ServiceEntry {
+  string serviceName = 1;                      // Name of the service (e.g., service1, service2)
+  repeated Service serviceDetails = 2;         // List of service addresses and ports for this service
+}
+
+// The ServiceResponse will return multiple ServiceEntry objects
+message ServiceResponse {
+  repeated ServiceEntry services = 1;          // List of all services and their details
 }
