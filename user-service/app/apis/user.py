@@ -2,6 +2,8 @@ from flask import request, jsonify, Blueprint
 from werkzeug.security import generate_password_hash, check_password_hash
 import time
 import json 
+from dotenv import load_dotenv
+import os
 
 from .. import db
 from ..models import User
@@ -9,6 +11,9 @@ from ..models import User
 
 user = Blueprint("user", __name__)
 REQUEST_TIMEOUT = 5
+load_dotenv()
+USER_SERVICE_ADDRESS = os.getenv("USER_SERVICE_ADDRESS")
+USER_SERVICE_PORT = os.getenv("USER_SERVICE_PORT")
 
 @user.before_request
 def start_timer():
@@ -50,8 +55,11 @@ def sign_up():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({"msg": f"Successful sign up!", 
-                    "user_id": new_user.id}), 201
+    return jsonify({
+        "msg": f"Successful sign up!", 
+        "user_id": new_user.id,
+        "websocket": f"{USER_SERVICE_ADDRESS}:{USER_SERVICE_PORT}"
+    }), 201
 
 
 @user.route('/login', methods=['POST'])
@@ -69,8 +77,11 @@ def login():
     if not check_password_hash(user.password, password):
         return jsonify({"msg": "Invalid email or password"}), 401
 
-    return jsonify({"msg": "Successful login!",
-                    "user_id": user.id}), 200
+    return jsonify({
+        "msg": "Successful login!",
+        "user_id": user.id,
+        "websocket": f"{USER_SERVICE_ADDRESS}:{USER_SERVICE_PORT}"
+    }), 500
 
 
 @user.route('/get-subscriptions/<int:user_id>', methods=['GET'])

@@ -9,3 +9,4 @@ flask_apscheduler
 redis
 psycopg2-binary
 unidecode
+fuzzywuzzy

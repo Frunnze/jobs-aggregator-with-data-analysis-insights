@@ -8,18 +8,17 @@ import redis
 import sys
 import requests
 
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///user.db")
 
 db = SQLAlchemy()
 socketio = SocketIO(cors_allowed_origins="*")
 redis_client = redis.StrictRedis(
-    host='localhost',  # Redis server hostname or IP address
+    host=os.getenv("REDIS_HOST", "localhost"),  # Redis server hostname or IP address
     port=6379,         # Redis server port
     db=0,              # Database number (default is 0)
     decode_responses=True  # Decodes responses to strings (instead of bytes)
 )
-
-load_dotenv()
-#DATABASE_URL = os.environ["DATABASE_URL"]
 
 def create_app():
     # Create and configure the flask app
@@ -34,7 +33,7 @@ def create_app():
     from . import websocket
 
     # scraped real-estate data
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
     db.init_app(app)
 
     # Register the apis

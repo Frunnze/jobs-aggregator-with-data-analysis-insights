@@ -1,60 +1,128 @@
 services:
+  service-discovery:
+    build: ./service-discovery
+    ports:
+      - "3000:3000"
+      - "5000:5000"
+    environment:
+      - GRPC_SERVER_HOST=service-discovery:5000
+
   gateway:
     build: ./gateway
     ports:
-      - "3000:3000" # Expose gateway on port 3000
+      - "3001:3001"
     environment:
-      - USER_SERVICE_URL=http://user-service:8080
-      - SCRAPER_SERVICE_URL=http://scraper-service:8000
+      - SERVICE_DISCOVERY_HOST=service-discovery:5000
+      - GATEWAY_PORT=3001
     depends_on:
-      - user-service
-      - scraper-service
+      - service-discovery
 
-  user-service:
+  user-service-1:
     build: ./user-service
     ports:
-      - "8080:8080" # Expose user service on port 8080
+      - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://user:password@user-db:5432/userdb
+      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
       - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_ADDRESS=http://user-service-1
+      - USER_SERVICE_PORT=8080
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
     depends_on:
-      - user-db
+      - service-discovery
+      - postgres
+      - redis
+  
+  user-service-2:
+    build: ./user-service
+    ports:
+      - "8081:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_ADDRESS=http://user-service-2
+      - USER_SERVICE_PORT=8080
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
+    depends_on:
+      - service-discovery
+      - postgres
       - redis
 
-  scraper-service:
+  user-service-3:
+    build: ./user-service
+    ports:
+      - "8082:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_ADDRESS=http://user-service-3
+      - USER_SERVICE_PORT=8080
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
+    depends_on:
+      - service-discovery
+      - postgres
+      - redis
+
+  scraper-service-1:
     build: ./scraper-service
     ports:
-      - "8000:8000" # Expose scraper service on port 8000
+      - "8000:8000"
     environment:
-      - USER_SERVICE=http://user-service:8080
-      - DATABASE_URL=postgresql://scraper:password@scraper-db:5432/scraperdb
+      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
       - REDIS_URL=redis://redis:6379
+      - SCRAPER_SERVICE_ADDRESS=http://scraper-service-1
+      - SCRAPER_SERVICE_PORT=8000
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
     depends_on:
-      - scraper-db
+      - service-discovery
+      - postgres
       - redis
-      - user-service
 
-  user-db:
+  scraper-service-2:
+    build: ./scraper-service
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
+      - REDIS_URL=redis://redis:6379
+      - SCRAPER_SERVICE_ADDRESS=http://scraper-service-2
+      - SCRAPER_SERVICE_PORT=8000
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
+    depends_on:
+      - service-discovery
+      - postgres
+      - redis
+
+  scraper-service-3:
+    build: ./scraper-service
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
+      - REDIS_URL=redis://redis:6379
+      - SCRAPER_SERVICE_ADDRESS=http://scraper-service-3
+      - SCRAPER_SERVICE_PORT=8000
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+      - REDIS_HOST=redis
+    depends_on:
+      - service-discovery
+      - postgres
+      - redis
+
+  postgres:
     image: postgres:15
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: userdb
     volumes:
-      - user_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-
-  scraper-db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: scraper
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: scraperdb
-    volumes:
-      - scraper_db_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
 
   redis:
     image: redis:alpine
@@ -62,5 +130,4 @@ services:
       - "6379:6379"
 
 volumes:
-  user_db_data:
-  scraper_db_data:
+  postgres_data:

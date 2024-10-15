@@ -8,16 +8,28 @@ from ..tools.rabota_md_scraper import RabotaMdScraper
 
 
 load_dotenv()
-USER_SERVICE = os.getenv("USER_SERVICE")
+SERVICE_DISCOVERY = os.getenv("SERVICE_DISCOVERY")
 scraper = RabotaMdScraper()
 
 
-@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=30000)
+def get_service_details(service_name):
+    url = f'{SERVICE_DISCOVERY}/get-service?name={service_name}'
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("Service not found." if response.status_code == 404 else f"Error: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+
+
+@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=10000)
 def scrape_jobs_from_rabota_md():
     print("RabotaMdScraper started scraping!")
     with scheduler.app.app_context():
         # Extract data
-        page, max_page = 2, 20
+        page, max_page = 2, 100
         url = "https://www.rabota.md/ro/vacancies/category/it/"
         while page <= max_page:
             data_list = []
@@ -63,11 +75,13 @@ def scrape_jobs_from_rabota_md():
 
                     # Send the job to the user
                     try:
-                        response = requests.post(
-                            url=USER_SERVICE + "/broadcast-jobs-to-users", 
-                            json=data_dict
-                        )
-                        print(response.status_code)
+                        user_services = get_service_details("user-service")
+                        print("user_services", user_services, "-----------------")
+                        for user_service in user_services:
+                            url_user = f"{user_service["serviceAddress"]}:{user_service["servicePort"]}/broadcast-jobs-to-users"
+                            print(url_user)
+                            response = requests.post(url=url_user, json=data_dict)
+                            print(response.status_code)
                     except Exception as e:
                         print(str(e))
                 except Exception as e:
