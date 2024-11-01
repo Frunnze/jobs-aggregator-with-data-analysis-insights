@@ -59,6 +59,12 @@ Why this application requires a microservice architecture?
     - Websocket (websockets library)
 - Gateway
     - JavaScript (RESTful API with Express.js)
+- Service Discovery
+    - JavaScript (gRPC and Express.js)
+- ELK stack
+    - Python (Flask)
+- ETL service
+    - Python (Flask)
 
 ## Data Management
 How data is managed across microservices?
