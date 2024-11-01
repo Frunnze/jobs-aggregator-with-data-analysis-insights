@@ -1,5 +1,25 @@
 # Jobs Aggregator With Data Analysis Insights
 
+## Theory
+- **Circuit Breaker:** This is a design pattern used to stop repeated failures in a system, allowing it to recover when multiple reroutes occur.
+
+- **Service High Availability:** This ensures that a service is consistently operational and available to users, minimizing downtime.
+
+- **Logging with ELK or Prometheus and Grafana:** These are tools used for collecting and visualizing logs and metrics from all services in a system to monitor performance and troubleshoot issues.
+
+- **2 Phase Commits:** This approach ensures that changes involving multiple databases are managed reliably by coordinating the commits in two phases, improving data consistency.
+
+- **Consistent Hashing for Cache:** This technique distributes cache data across servers efficiently, ensuring that requests can be handled without overloading any single server.
+
+- **Cache High Availability:** This refers to strategies that ensure cached data is always accessible, even if one or more cache instances fail.
+
+- **Long-running Saga Transactions:** Instead of traditional two-phase commits, this method manages transactions that span multiple services by coordinating long-running processes to maintain consistency.
+
+- **Database Redundancy/Replication:** This involves creating copies of a database to ensure data is not lost and can be quickly restored in case of failures.
+
+- **Data Warehouse and ETL:** A data warehouse is a centralized repository for storing data from multiple databases, and ETL (Extract, Transform, Load) processes are used to update the warehouse regularly with data.
+
+
 ## Application Suitability
 Why this application is relevant?
 <br>
@@ -24,7 +44,7 @@ Why this application requires a microservice architecture?
     - jobs data processing and insights generation;
     - the last can save the generated insights in a cache db like redis;
 
-![alt text](imgs/architecture.jpg)
+![alt text](imgs/improved_architecture.jpg)
 <br>
 <b>Figure 1.</b> Simple system architecture diagram
 
@@ -57,7 +77,7 @@ received_data: json {
     "password": "string"
 },
 responses:
-    201: json {"msg": "Successful sign up"},
+    201: json {"msg": "Successful sign up", "websocket": "ws_url"},
     400: json {"msg": "Invalid email"},
     400: json {"msg": "Password too short"}
 
@@ -69,16 +89,23 @@ received_data: json {
     "password": "string"
 },
 responses:
-    200: json {"msg": "Successful login"},
+    200: json {"msg": "Successful login", "websocket": "ws_url"},
     401: json {"msg": "Invalid email or password"}
+
+
+endpoint: "get-subscriptions/<user_id>",
+method: "GET",
+received_data: path parameter
+    "user_id": "integer"
+responses:
+    200: json {"skills": ["skill1", "skill2"]},
+    404: json {"msg": "No skills"}
 
 
 endpoint: "/find-jobs",
 method: "GET",
 received_data: query parameters
-    "keywords": "string",
-    "page": "integer",
-    "per_page": "integer"
+    "title": "string",
 responses:
     200: json [
         {
@@ -99,7 +126,7 @@ received_data: path parameter
     "keywords": "string"
 response:
     200: json {
-        "skill_name": "integer"
+        ["string", "integer"]
     }
 
 
@@ -113,13 +140,26 @@ response:
     }
 
 
-endpoint: "/subscribe/{tag}",
-method: "POST",
-received_data: path parameter
-    "tag": "string"
+endpoint: "/skills-by-salary"
+method: "GET",
 response:
-    200: json {"msg": "string" // websocket address}
+    200: json {
+        "skill": "salary"
+    }
 
+endpoint: "/average-job-salary"
+method: "GET",
+response:
+    200: json {
+        "average_salary": "float"
+    }
+
+endpoint: "/all-skills-by-demand"
+method: "GET",
+response:
+    200: json {
+        "skill": "demand"
+    }
 
 endpoint: "/status",
 method: "GET",
@@ -149,3 +189,10 @@ services:
   redis:
     image: "redis:alpine"
 ```
+
+## Run/deploy/test the project
+- git clone https://github.com/Frunnze/jobs-aggregator-with-data-analysis-insights
+- cd jobs-aggregator-with-data-analysis-insights
+- docker compose up --build
+- import pad-lab.postman_collection in postman
+- The first endpoint to access is "/sign-up".

@@ -7,13 +7,14 @@ const TASK_TIMEOUT_LIMIT = 5000;
 const RETRY_WINDOW = 3.5 * TASK_TIMEOUT_LIMIT;
 async function makeServiceCall(serviceName, serviceAddress, servicePort, api, method, data = null, retries = 3, delay = RETRY_WINDOW / 3 ) {
     const url = `${serviceAddress}:${servicePort}/${api}`;        
-    
+
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             response = await axios({ method: method, url: url, data: data, timeout: TASK_TIMEOUT_LIMIT });
             return response;  // Return the response if the call is successful
         } 
         catch (error) {
+            console.log(error.response.status, "<--------------------")
             // Check if the error has a response and its status
             if (error.response && error.response.status < 500) {
                 // If status code < 500, return the response as is

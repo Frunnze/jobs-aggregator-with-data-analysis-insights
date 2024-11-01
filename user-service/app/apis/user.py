@@ -13,7 +13,8 @@ user = Blueprint("user", __name__)
 REQUEST_TIMEOUT = 5
 load_dotenv()
 USER_SERVICE_ADDRESS = os.getenv("USER_SERVICE_ADDRESS")
-USER_SERVICE_PORT = os.getenv("USER_SERVICE_PORT")
+USER_SERVICE_ADDRESS = USER_SERVICE_ADDRESS.replace("http://", "ws://")
+USER_SERVICE_PORT = os.getenv("SOCKET_PORT")
 
 @user.before_request
 def start_timer():
@@ -77,6 +78,7 @@ def login():
     if not check_password_hash(user.password, password):
         return jsonify({"msg": "Invalid email or password"}), 401
 
+    time.sleep(10)
     return jsonify({
         "msg": "Successful login!",
         "user_id": user.id,
