@@ -14,6 +14,8 @@ services:
     environment:
       - SERVICE_DISCOVERY_HOST=service-discovery:5000
       - GATEWAY_PORT=3001
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=pass
     depends_on:
       - service-discovery
 
@@ -22,7 +24,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
       - REDIS_URL=redis://redis:6379
       - USER_SERVICE_ADDRESS=http://user-service-1
       - USER_SERVICE_PORT=8080
@@ -39,7 +41,7 @@ services:
     ports:
       - "8081:8080"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
       - REDIS_URL=redis://redis:6379
       - USER_SERVICE_ADDRESS=http://user-service-2
       - USER_SERVICE_PORT=8080
@@ -56,7 +58,7 @@ services:
     ports:
       - "8082:8080"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
       - REDIS_URL=redis://redis:6379
       - USER_SERVICE_ADDRESS=http://user-service-3
       - USER_SERVICE_PORT=8080
@@ -73,7 +75,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
       - REDIS_URL=redis://redis:6379
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-1
       - SCRAPER_SERVICE_PORT=8000
@@ -89,7 +91,7 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
       - REDIS_URL=redis://redis:6379
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-2
       - SCRAPER_SERVICE_PORT=8000
@@ -105,7 +107,7 @@ services:
     ports:
       - "8002:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/scraperdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
       - REDIS_URL=redis://redis:6379
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-3
       - SCRAPER_SERVICE_PORT=8000
@@ -119,8 +121,8 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: userdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -132,5 +134,35 @@ services:
     ports:
       - "6379:6379"
 
+  prometheus:
+    image: prom/prometheus:v2.20.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    ports:
+      - 9090:9090
+    expose:
+      - 9090
+
+  grafana:
+    image: grafana/grafana:7.1.5
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SERVER_HTTP_PORT=3003
+    ports:
+      - 3003:3003
+    expose:
+      - 3003
+
+        
 volumes:
   postgres_data:
+  grafana_data: 
+  prometheus_data:

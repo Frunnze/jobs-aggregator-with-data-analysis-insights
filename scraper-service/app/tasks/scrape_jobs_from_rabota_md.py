@@ -24,7 +24,7 @@ def get_service_details(service_name):
         print(f"An error occurred: {e}")
 
 
-@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=10000)
+@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=10, max_instances=1)
 def scrape_jobs_from_rabota_md():
     print("RabotaMdScraper started scraping!")
     with scheduler.app.app_context():

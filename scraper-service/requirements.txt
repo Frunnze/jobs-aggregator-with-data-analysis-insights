@@ -10,3 +10,5 @@ redis
 psycopg2-binary
 unidecode
 fuzzywuzzy
+prometheus-flask-exporter
+demjson3

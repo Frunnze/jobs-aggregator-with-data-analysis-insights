@@ -7,6 +7,8 @@ from flask_socketio import SocketIO
 import redis
 import sys
 import requests
+from prometheus_flask_exporter import PrometheusMetrics, NO_PREFIX
+
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///user.db")
@@ -19,6 +21,7 @@ redis_client = redis.StrictRedis(
     db=0,              # Database number (default is 0)
     decode_responses=True  # Decodes responses to strings (instead of bytes)
 )
+
 
 def create_app():
     # Create and configure the flask app
@@ -36,11 +39,17 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
     db.init_app(app)
 
+    # Connect Prometheus
+    metrics = PrometheusMetrics(app, defaults_prefix=NO_PREFIX)
+    metrics.info('app_info', 'Application info', version='1.0.3')
+
     # Register the apis
     from .apis.user import user
     from .apis.broadcast import broadcast
+    from .apis.saga import saga
     app.register_blueprint(user)
     app.register_blueprint(broadcast)
+    app.register_blueprint(saga)
 
     # Create the dbs and add initial tables values
     with app.app_context():

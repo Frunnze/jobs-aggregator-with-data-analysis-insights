@@ -7,6 +7,7 @@ WORKDIR /usr/src/app
 # Initialize npm and install dependencies
 RUN npm init -y
 RUN npm install express axios dotenv @grpc/grpc-js @grpc/proto-loader
+RUN npm install prom-client
 
 # Copy the rest of the application files
 COPY . .

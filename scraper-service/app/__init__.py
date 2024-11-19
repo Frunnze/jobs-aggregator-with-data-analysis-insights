@@ -7,6 +7,7 @@ from flask_apscheduler import APScheduler
 import redis
 import requests
 import sys
+from prometheus_flask_exporter import PrometheusMetrics, NO_PREFIX
 
 
 # set configuration values
@@ -38,14 +39,171 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL #"sqlite:///scraped_data.db"
     db.init_app(app)
 
+    # Connect Prometheus
+    metrics = PrometheusMetrics(app, defaults_prefix=NO_PREFIX)
+    metrics.info('app_info', 'Application info', version='1.0.3')
+
     # Register the apis
     from .apis.data import data
+    from .apis.saga import saga
     app.register_blueprint(data)
+    app.register_blueprint(saga)
 
     # Create the dbs and add initial tables values
-    from . import models
+    from .models import SkillsList, Skill, Job
     with app.app_context():
         db.create_all()
+        from .tools import rabota_md_scraper
+        it_skills = [
+            ["jest"],
+            ["syncfusion"],
+            ["pytest"],
+            ["unittest"],
+            ["redux"],
+            ["solidjs", "solid.js", "solid js"],
+            ["nestjs", "nest.js", "nest js"],
+            [".net"],
+            ["gatsby"],
+            ["html"],
+            ["sql"], 
+            ["javascript", "js"],
+            ["nodejs", "node.js", "node", "node js"],
+            ["geomapping"],
+            ["gis"],
+            ["openstreetmaps"],
+            ["nosql"],
+            ["python"], 
+            ["restful", "rest", "rest api", "restapi"], 
+            ["java"],
+            ["c#", "csharp"], 
+            ["linux"],
+            ["c++"], 
+            ["ruby"], 
+            ["php"], 
+            ["swift"], 
+            ["go", "golang"], 
+            ["kotlin"], 
+            ["r"], 
+            ["typescript"], 
+            ["rust"], 
+            ["perl"], 
+            ["github", "git hub"],
+            ["scala"], 
+            ["apache hadoop"],
+            ["apache cassandra"],
+            ["oop"],
+            ["devops", "dev ops"],
+            ["design patterns"],
+            ["spark"],
+            ["nosql"],
+            ["django"], 
+            ["flask"], 
+            ["express.js", "express", "expressjs", "express js"], 
+            ["ruby on rails"], 
+            ["spring"], 
+            ["asp.net", "asp net", "aspnet"], 
+            ["angular", "angularjs", "angular.js", "angular js"], 
+            ["react", "react.js", "reactjs"], 
+            ["vue.js", "vue", "vuejs", "vue js"], 
+            ["windows"],
+            ["macos", "mac os"],
+            ["unix"],
+            ["kvm"],
+            ["tcp ip", "tcpip"],
+            ["laravel"], 
+            ["preact", "preact.js", "preact js"],
+            ["ember", "ember.js", "ember js"],
+            ["lit", "lit.js", "lit js"],
+            ["alpin", "alpin.js", "alpin js"],
+            ["svelte", "svelte js", "svelte.js"], 
+            ["jquery"], 
+            ["bootstrap"], 
+            ["c"], 
+            ["fastapi", "fast api"], 
+            ["tailwind", "tailwind css", "tailwindcss"], 
+            ["css"],
+            ["react native"], 
+            ["flutter"], 
+            ["xamarin"], 
+            ["pandas"], 
+            ["numpy"], 
+            ["scikitlearn", "scikit-learn", "scikit learn", "scikit"],
+            ["version control"],
+            ["xgboost"],
+            ["tensorflow"], 
+            ["keras"], 
+            ["pytorch"], 
+            ["matplotlib"], 
+            ["seaborn"], 
+            ["nltk"], 
+            ["opencv"], 
+            ["mysql"],
+            ["postgresql", "postgres", "postgre"], 
+            ["mongodb", "mongo db", "mongo"], 
+            ["sqlite"], 
+            ["oracle"], 
+            ["microsoft sql server", "sql server"], 
+            ["redis"], 
+            ["cassandra"], 
+            ["aws"], 
+            ["azure"], 
+            ["gc", "google cloud", "gcp", "google cloud platform"],
+            ["tableau"],
+            ["heroku"], 
+            ["digitalocean"], 
+            ["docker"], 
+            ["nextjs", "next js", "next.js"],
+            ["docker compose"],
+            ["kubernetes"], 
+            ["jenkins"], 
+            ["git"], 
+            ["gitlab", "git lab"],
+            ["ansible"], 
+            ["terraform"], 
+            ["ci cd"], 
+            ["english"],
+            ["penetration testing"], 
+            ["ethical hacking"], 
+            ["firewall configuration"], 
+            ["network security"], 
+            ["malware analysis"], 
+            ["tcp ip"], 
+            ["dns"], 
+            ["lan wan"], 
+            ["vpn"], 
+            ["voip"], 
+            ["git"], 
+            ["subversion", "svn"], 
+            ["mercurial"], 
+            ["agile"], 
+            ["scrum"], 
+            ["bash"],
+            ["terraform"],
+            ["ansible"],
+            ["kanban"], 
+            ["waterfall"], 
+            ["jira"], 
+            ["trello"], 
+            ["asana"], 
+            ["web scraping"], 
+            ["ui ux design", "ui ux"], 
+            ["machine learning", "ml", "ai"], 
+            ["nlp"], 
+            ["blockchain"], 
+            ["iot"],
+            ["ios"],
+            ["sqlalchemy"],
+            ["orm"],
+            ["bs4", "beautifulsoup", "beautifulsoup4", "beautiful soup"],
+            ["websocket", "web socket"],
+            ["celery"],
+            ["elasticsearch", "elastic search"]
+        ]
+        for skill in it_skills:
+            exists = SkillsList.query.filter_by(name=str(skill)).first()
+            if not exists:
+                db.session.add(SkillsList(name=str(skill)))
+                db.session.commit()
 
     # Start scheduler
     scheduler.init_app(app)

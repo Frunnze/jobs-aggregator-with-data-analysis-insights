@@ -4,10 +4,13 @@ const protoLoader = require('@grpc/proto-loader');
 const dotenv = require('dotenv');
 dotenv.config();
 const makeServiceCall = require('./circuitBreaker');
-
+const connectPrometheus = require('./connectPrometheus');
 
 const app = express();
 app.use(express.json());
+
+// Connect prometheus
+connectPrometheus(app);
 
 // Load the protobuf
 const packageDefinition = protoLoader.loadSync('service_discovery.proto');

@@ -78,7 +78,6 @@ def login():
     if not check_password_hash(user.password, password):
         return jsonify({"msg": "Invalid email or password"}), 401
 
-    time.sleep(10)
     return jsonify({
         "msg": "Successful login!",
         "user_id": user.id,

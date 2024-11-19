@@ -5,12 +5,25 @@ const lodash = require('lodash');
 
 const { getServices } = require('./serviceDiscoveryGrpc');
 const makeServiceCall = require('./circuitBreaker');
+const connectPrometheus = require('./connectPrometheus');
 
+
+const app = express();
+app.use(express.json());
+
+// Middleware to handle concurrent tasks limit
+const limiter = rateLimit({
+    windowMs: 5 * 1000, // 1 second
+    max: 2,
+    message: 'Too many requests!',
+});
+app.use(limiter);
+
+// Connect prometheus
+connectPrometheus(app);
 
 dotenv.config();
-
 let services = {}
-
 
 // Alert in case of critical load
 const SERVICE_LOAD_LIMIT = 1;
@@ -95,195 +108,149 @@ function subActiveReq(serviceAddress, servicePort) {
 };
 
 
-const app = express();
-app.use(express.json());
+// Wrapper for the makeServiceCall, which if the requests (3) fail
+// it will send the requests again to N number of other service of the 
+// same type
+async function makePersistentServiceCall(serviceName, api, method, data = null, serviceCheckLimit = 2) {
+    var serviceAddress, servicePort;
+    var response;
+    var firstRes;
+    for (let i = 0; i < serviceCheckLimit; i++) {
+        ({ serviceAddress, servicePort } = getServiceInfo(serviceName));
+        if (i == 0) {
+            addActiveReq(serviceAddress, servicePort);
+        }
+        response = await makeServiceCall(
+            serviceName, serviceAddress, 
+            servicePort, api, method, data
+        );
+        console.log("Checked service", i)
 
-// Middleware to handle concurrent tasks limit
-const limiter = rateLimit({
-    windowMs: 5 * 1000, // 1 second
-    max: 2,
-    message: 'Too many requests!',
-});
+        // Check the response status
+        // if 500 then try another service
+        // otherwise you return the response
+        if (response && response.status < 500) {
+            console.log("Out service", i)
+            subActiveReq(serviceAddress, servicePort);
+            return response;
+        };
 
-// Apply the rate limit middleware to all requests
-app.use(limiter);
+        if (i == 0) {
+            firstRes = response;
+        };
+    };
+    subActiveReq(serviceAddress, servicePort);
+    console.log("Circuit breaker tripped!");
+    const error = new Error("Circuit breaker tripped!");
+    error.details = {response: firstRes}
+    throw error;
+};
 
 // Gateway routes
 app.post('/sign-up', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'user-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, 
-            servicePort, "sign-up", 'post', req.body
+        const response = await makePersistentServiceCall(
+            "user-service",  "sign-up", "post", req.body
         );
-        res.status(201).json(response.data);
+        console.log("Received response:", response); // Log the response to see if it is truly a "user already exists" error
+        res.status(response.status).json(response.data);
     } catch (error) {
+        console.log("Error occurred:", error); // Log the error
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
-    }
+    };
 });
 
 app.post('/login', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'user-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-        console.log(serviceLoadData);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, 
-            servicePort, "login", 'post', req.body
+        const response = await makePersistentServiceCall(
+            "user-service",  "login", "post", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
-        console.log(serviceLoadData);
     }
 });
 
 app.get('/get-subscriptions/:user_id', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'user-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `get-subscriptions/${req.params.user_id}`, 'get', req.body
+        const response = await makePersistentServiceCall(
+            "user-service",  `get-subscriptions/${req.params.user_id}`, 
+            "get", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     }
 });
 
 app.get('/find-jobs', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-        const { title } = req.query;
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `find-jobs?title=${title}`, 
-            'get', req.body
+        const response = await makePersistentServiceCall(
+            "scraper-service",  `find-jobs?title=${req.query.title}`, 
+            "get", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     }
 });
 
 app.get('/generate-insight-skills-by-demand/:keywords', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `generate-insight-skills-by-demand/${req.params.keywords}`, 
+        const response = await makePersistentServiceCall(
+            "scraper-service",  `generate-insight-skills-by-demand/${req.params.keywords}`, 
             'get', req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     }
 });
 
 app.get('/all-skills-by-demand', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            'all-skills-by-demand', 'get', req.body
+        const response = await makePersistentServiceCall(
+            "scraper-service",  'all-skills-by-demand', 'get', req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     };
 });
 
 app.get('/skills-by-salary', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `skills-by-salary`, 
-            'get', req.body
+        const response = await makePersistentServiceCall(
+            "scraper-service",  "skills-by-salary", 
+            "get", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     };
 });
 
 app.get('/average-job-salary', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `average-job-salary`, 
-            'get', req.body
+        const response = await makePersistentServiceCall(
+            "scraper-service",  "average-job-salary", 
+            "get", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     };
 });
 
 app.get('/generate-insight-average-experience/:keywords', async (req, res) => {
-    let serviceAddress, servicePort;
     try {
-        const serviceName = 'scraper-service';
-        ({ serviceAddress, servicePort } = await getServiceInfo(serviceName));
-        addActiveReq(serviceAddress, servicePort);
-
-        const response = await makeServiceCall(
-            serviceName, serviceAddress, servicePort, 
-            `generate-insight-average-experience/${req.params.keywords}`, 
-            'get', req.body
+        const response = await makePersistentServiceCall(
+            "scraper-service",  `generate-insight-average-experience/${req.params.keywords}`, 
+            "get", req.body
         );
-        res.status(200).json(response.data);
+        res.status(response.status).json(response.data);
     } catch (error) {
         res.status(error.response?.status || 500).json({ msg: error.message });
-    } finally {
-        subActiveReq(serviceAddress, servicePort);
     };
 });
 
@@ -293,6 +260,76 @@ app.get("/status", async (req, res) => {
     } catch {
         res.status(500).json({ msg: "Gateway is down!"});
     };
+});
+
+
+// Saga
+app.post('/add-new-skill', async (req, res) => {
+    const { user_id, skill_name } = req.body;
+
+    if (!user_id || !skill_name) {
+        return res.status(400).json({ error: "user_id and skill_name are required" });
+    }
+
+    let subscriptionId;
+    let skillId;
+
+    try {
+        // Step 1: Add new subscription (user-service)
+        const response = await makePersistentServiceCall(
+            "user-service",  "add-new-subscription-skill", 
+            "post", {user_id, skill_name}
+        );
+        subscriptionId = response.data.subscription_id;
+
+        // Step 2: Add skill to the list (scraper-service)
+        const skillResponse = await makePersistentServiceCall(
+            "scraper-service",  "add-skill-to-list", 
+            "post", {skill_name}
+        );
+        skillId = skillResponse.data.skill_id;
+
+        return res.status(201).json({
+            message: "Skill and subscription added successfully",
+            subscription_id: subscriptionId,
+            skill_id: skillId
+        });
+    } catch (error) {
+        console.error("Saga failure: ", error.message);
+
+        // Compensating transactions if any step fails
+        if (!subscriptionId) {
+            subscriptionId = error.details.response.data.subscriptionId;
+        }
+        if (subscriptionId) {
+            try {
+                await makePersistentServiceCall(
+                    "user-service",  `delete-new-subscription-skill/${subscriptionId}`, 
+                    "delete", null
+                );
+                console.log("Subscription compensating transaction executed successfully.");
+            } catch (deleteError) {
+                console.error("Failed to undo subscription: ", deleteError.message);
+            }
+        }
+
+        if (!skillId) {
+            skillId = error.details.response.data.skill_id;
+        }
+        if (skillId) {
+            try {
+                await makePersistentServiceCall(
+                    "scraper-service",  `delete-skill-from-list/${skillId}`, 
+                    "delete", null
+                );
+                console.log("Skill compensating transaction executed successfully.");
+            } catch (deleteError) {
+                console.error("Failed to undo skill addition: ", deleteError.message);
+            }
+        }
+
+        return res.status(500).json({ error: "Saga transaction failed", details: error.message });
+    }
 });
 
 // Start the server
