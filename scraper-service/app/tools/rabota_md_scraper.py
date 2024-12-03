@@ -18,6 +18,7 @@ class RabotaMdScraper:
 
     def extract_page_links(self, url):
         web_page = requests.get(url)
+        print("response", web_page.status_code)
         soup = bs4(web_page.text, "html.parser")
 
         # Access the page container with the jobs
@@ -29,14 +30,16 @@ class RabotaMdScraper:
         # Get all the jobs into a list
         jobs_containers = jobs_page_container.find_all(
             "div", 
-            class_="vacancyCardItem previewCard"
+            class_="vacancyCardItem previewCard noPaddings"
         )
 
         # Get the page link of each job
         jobs_pages_links = []
         for job in jobs_containers:
-            job_page_link = "https://www.rabota.md" + job.find("a").get("href")
-            jobs_pages_links.append(job_page_link)
+            href = job.find_all("a")[1].get("href")
+            if href:
+                job_page_link = "https://www.rabota.md" + href
+                jobs_pages_links.append(job_page_link)
 
         return jobs_pages_links
     
@@ -136,4 +139,5 @@ class RabotaMdScraper:
 
 
 if __name__ == "__main__":
-    RabotaMdScraper().scrape()
+    l = RabotaMdScraper().extract_page_links("https://www.rabota.md/ro/vacancies/category/it/2")
+    print(l)

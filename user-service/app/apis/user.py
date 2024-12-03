@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 
 from .. import db
-from ..models import User
+from ..models import User, Subscription
 
 
 user = Blueprint("user", __name__)
@@ -95,3 +95,31 @@ def get_user_subscriptions(user_id):
 @user.route('/status', methods=['GET'])
 def status():
     return jsonify({"msg": "Service is running"}), 200
+
+
+@user.route('/get-db-data', methods=['GET'])
+def get_db_data():
+    try:
+        # Query all users and their subscriptions
+        users = User.query.all()
+
+        # Format data into a list of dictionaries
+        data = []
+        for user in users:
+            user_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'password': user.password,
+                'subscriptions': [
+                    {'id': sub.id, 'room_name': sub.room_name} for sub in user.subscriptions
+                ]
+            }
+            data.append(user_data)
+
+        # Return JSON response
+        return jsonify({'status': 'success', 'data': data}), 200
+
+    except Exception as e:
+        # Handle errors
+        return jsonify({'status': 'error', 'message': str(e)}), 500

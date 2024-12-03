@@ -21,7 +21,7 @@ def add_skill_to_list():
         db.session.commit()
 
         # Assume error
-        if skill:
+        if not skill:
             raise ValueError("Some error!")
 
         return jsonify({"skill_id": skill_id}), 201

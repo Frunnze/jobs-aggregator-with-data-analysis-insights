@@ -15,7 +15,7 @@ class Config:
     SCHEDULER_API_ENABLED = True
 
 load_dotenv()
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 db = SQLAlchemy()
 scheduler = APScheduler()
@@ -25,6 +25,9 @@ redis_client = redis.StrictRedis(
     db=0,              # Database number (default is 0)
     decode_responses=True  # Decodes responses to strings (instead of bytes)
 )
+try:
+    redis_client.flushall()
+except: pass
 
 def create_app():
     # Create and configure the flask app
@@ -36,7 +39,8 @@ def create_app():
     CORS(app)
 
     # scraped real-estate data
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL #"sqlite:///scraped_data.db"
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+    #app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///scraped_data.db"
     db.init_app(app)
 
     # Connect Prometheus

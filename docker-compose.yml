@@ -6,6 +6,8 @@ services:
       - "5000:5000"
     environment:
       - GRPC_SERVER_HOST=service-discovery:5000
+    networks:
+      - default
 
   gateway:
     build: ./gateway
@@ -18,121 +20,313 @@ services:
       - ELASTIC_PASSWORD=pass
     depends_on:
       - service-discovery
+    networks:
+      - default
 
   user-service-1:
     build: ./user-service
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@pg-0,pg-1,pg-2,pg-3:5432/userdb?target_session_attrs=read-write&connect_timeout=10
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - USER_SERVICE_ADDRESS=http://user-service-1
       - USER_SERVICE_PORT=8080
       - SOCKET_PORT=8080
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
-  
+      - pg-0
+      - pg-1
+      - pg-2
+      - pg-3 
+    networks:
+      - default  # User-service uses the default network
+      - redis_cluster_network
+
   user-service-2:
     build: ./user-service
     ports:
       - "8081:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@pg-0,pg-1,pg-2,pg-3:5432/userdb?target_session_attrs=read-write&connect_timeout=10
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - USER_SERVICE_ADDRESS=http://user-service-2
       - USER_SERVICE_PORT=8080
       - SOCKET_PORT=8081
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
+      - pg-0
+      - pg-1
+      - pg-2
+      - pg-3 
+    networks:
+      - default
+      - redis_cluster_network
 
   user-service-3:
     build: ./user-service
     ports:
       - "8082:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/userdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@pg-0,pg-1,pg-2,pg-3:5432/userdb?target_session_attrs=read-write&connect_timeout=10
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - USER_SERVICE_ADDRESS=http://user-service-3
       - USER_SERVICE_PORT=8080
       - SOCKET_PORT=8082
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
+      - pg-0
+      - pg-1
+      - pg-2
+      - pg-3 
+    networks:
+      - default
+      - redis_cluster_network
 
   scraper-service-1:
     build: ./scraper-service
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_scraper:5432/scraperdb
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-1
       - SCRAPER_SERVICE_PORT=8000
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
+      - postgres_scraper
+    networks:
+      - default
+      - redis_cluster_network
 
   scraper-service-2:
     build: ./scraper-service
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_scraper:5432/scraperdb
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-2
       - SCRAPER_SERVICE_PORT=8000
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
+      - postgres_scraper
+    networks:
+      - default
+      - redis_cluster_network
 
   scraper-service-3:
     build: ./scraper-service
     ports:
       - "8002:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraperdb
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_scraper:5432/scraperdb
+      - REDIS_URL=redis://redis-node-1:6379  # Pointing to Redis node on the redis network
       - SCRAPER_SERVICE_ADDRESS=http://scraper-service-3
       - SCRAPER_SERVICE_PORT=8000
       - SERVICE_DISCOVERY=http://service-discovery:3000
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-node-1
     depends_on:
       - service-discovery
-      - postgres
-      - redis
+      - postgres_scraper
+    networks:
+      - default
+      - redis_cluster_network
 
-  postgres:
+  postgres_scraper:
     image: postgres:15
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: userdb
+      POSTGRES_DB: scraperdb
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_scraper_data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    networks:
+      - default
+
+  etl-service:
+    build: ./etl-service
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_warehouse:5432/warehousedb
+      - SCRAPER_SERVICE_HOST=http://scraper-service-1:8000
+      - USER_SERVICE_HOST=http://user-service-1:8080
+      - ETL_SERVICE_ADDRESS=http://etl-service
+      - ETL_SERVICE_PORT=8000
+      - SERVICE_DISCOVERY=http://service-discovery:3000
+    depends_on:
+      - service-discovery
+      - postgres_warehouse
+    networks:
+      - default
+
+  postgres_warehouse:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: warehousedb
+    volumes:
+      - postgres_warehouse_data:/var/lib/postgresql/data
+    ports:
+      - "5440:5432"
+    networks:
+      - default
+
+
+######################### POSTGRES START CLUSTER #########################
+
+  pg-0:
+    image: docker.io/bitnami/postgresql-repmgr:17
     ports:
       - "5432:5432"
+    volumes:
+      - pg_0_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=postgres
+      - POSTGRESQL_USERNAME=postgres
+      - POSTGRESQL_PASSWORD=postgres
+      - POSTGRESQL_DATABASE=userdb
+      - REPMGR_PASSWORD=postgres
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=pg-0,pg-1,pg-2,pg-3:5432
+      - REPMGR_NODE_NAME=pg-0
+      - REPMGR_NODE_NETWORK_NAME=pg-0
+      - REPMGR_PORT_NUMBER=5432
 
-  redis:
-    image: redis:alpine
+  pg-1:
+    image: docker.io/bitnami/postgresql-repmgr:17
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_1_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=postgres
+      - POSTGRESQL_USERNAME=postgres
+      - POSTGRESQL_PASSWORD=postgres
+      - POSTGRESQL_DATABASE=userdb
+      - REPMGR_PASSWORD=postgres
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=pg-0,pg-1,pg-2,pg-3:5432
+      - REPMGR_NODE_NAME=pg-1
+      - REPMGR_NODE_NETWORK_NAME=pg-1
+      - REPMGR_PORT_NUMBER=5432
+
+  pg-2:
+    image: docker.io/bitnami/postgresql-repmgr:17
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_2_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=postgres
+      - POSTGRESQL_USERNAME=postgres
+      - POSTGRESQL_PASSWORD=postgres
+      - POSTGRESQL_DATABASE=userdb
+      - REPMGR_PASSWORD=postgres
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=pg-0,pg-1,pg-2,pg-3:5432
+      - REPMGR_NODE_NAME=pg-2
+      - REPMGR_NODE_NETWORK_NAME=pg-2
+      - REPMGR_PORT_NUMBER=5432
+
+  pg-3:
+    image: docker.io/bitnami/postgresql-repmgr:17
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_3_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=postgres
+      - POSTGRESQL_USERNAME=postgres
+      - POSTGRESQL_PASSWORD=postgres
+      - POSTGRESQL_DATABASE=userdb
+      - REPMGR_PASSWORD=postgres
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=pg-0,pg-1,pg-2,pg-3:5432
+      - REPMGR_NODE_NAME=pg-3
+      - REPMGR_NODE_NETWORK_NAME=pg-3
+      - REPMGR_PORT_NUMBER=5432
+
+
+######################### POSTGRES END CLUSTER #########################
+
+  redis-node-1:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data-1:/data
+    networks:
+      - redis_cluster_network
+
+  redis-node-2:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data-2:/data
+    networks:
+      - redis_cluster_network
+
+  redis-node-3:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-data-3:/data
+    networks:
+      - redis_cluster_network
+
+  redis-node-4:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis-data-4:/data
+    networks:
+      - redis_cluster_network
+
+  redis-node-5:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+    ports:
+      - "6383:6379"
+    volumes:
+      - redis-data-5:/data
+    networks:
+      - redis_cluster_network
+
+  redis-node-6:
+    image: redis:6.2
+    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+    ports:
+      - "6384:6379"
+    volumes:
+      - redis-data-6:/data
+    networks:
+      - redis_cluster_network
 
   prometheus:
     image: prom/prometheus:v2.20.1
@@ -161,8 +355,30 @@ services:
     expose:
       - 3003
 
-        
+networks:
+  default:
+    driver: bridge
+  redis_cluster_network:
+    driver: bridge
+
 volumes:
+  postgres_scraper_data:
+  postgres_warehouse_data:
   postgres_data:
+  postgres_data1:
   grafana_data: 
   prometheus_data:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:
+  redis-data-4:
+  redis-data-5:
+  redis-data-6:
+  pg_0_data:
+    driver: local
+  pg_1_data:
+    driver: local
+  pg_2_data:
+    driver: local
+  pg_3_data:
+    driver: local

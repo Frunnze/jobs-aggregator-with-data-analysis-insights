@@ -24,7 +24,7 @@ def get_service_details(service_name):
         print(f"An error occurred: {e}")
 
 
-@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=10, max_instances=1)
+@scheduler.task('interval', id='scrape_jobs_from_rabota_md', seconds=20000, max_instances=3)
 def scrape_jobs_from_rabota_md():
     print("RabotaMdScraper started scraping!")
     with scheduler.app.app_context():
@@ -34,11 +34,13 @@ def scrape_jobs_from_rabota_md():
         while page <= max_page:
             data_list = []
             jobs_pages_links = scraper.extract_page_links(url + str(page))
+            print("jobs_pages_links", jobs_pages_links)
             for link in jobs_pages_links:
                 # Check if it already exists
                 job = Job.query.filter_by(link=link).first()
                 if job: continue
                 data = scraper.scrape_page_data(link)
+                print("data", data)
                 data_list.append(data)
                 print("\n"*5)
                 print(data)
@@ -46,6 +48,7 @@ def scrape_jobs_from_rabota_md():
 
             # Save data
             for data_dict in data_list:
+                print("data_dict", data_dict)
                 try:
                     # Create a new job record
                     new_job = Job(

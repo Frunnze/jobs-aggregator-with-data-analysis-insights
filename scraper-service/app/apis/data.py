@@ -5,7 +5,7 @@ import time
 from fuzzywuzzy import fuzz
 
 from .. import db, redis_client
-from ..models import Skill, Job
+from ..models import Skill, Job, SkillsList
 
 
 data = Blueprint("data", __name__)
@@ -88,8 +88,8 @@ def generate_insight_skills_by_demand(keywords):
 @data.route('/all-skills-by-demand', methods=['GET'])
 def all_skills_by_demand():
     try:
-        if redis_client.exists("skills_data"):
-            skills_data = json.loads(redis_client.get("skills_data"))
+        if redis_client.exists("skills_data2"):
+            skills_data = json.loads(redis_client.get("skills_data2"))
             return jsonify(skills_data), 200
 
         # Query skills, grouping by name and summing the counter
@@ -110,7 +110,7 @@ def all_skills_by_demand():
                 'demand': skill.total_demand
             } for skill in skills
         ]
-        redis_client.set("skills_data", json.dumps(skills_data), ex=10)
+        redis_client.set("skills_data2", json.dumps(skills_data), ex=500)
         return jsonify(skills_data), 200
 
     except Exception as e:
@@ -118,6 +118,7 @@ def all_skills_by_demand():
 
 @data.route('/generate-insight-average-experience/<string:keywords>', methods=['GET'])
 def generate_insight_average_experience(keywords):
+    print("wtfsdsdsdds")
     jobs = Job.query.all()
     jobs_with_keyword = []
     for job in jobs:
@@ -255,3 +256,44 @@ def avg_salary_by_keywords(keywords):
         'average_salary': average_salary,
         'jobs_num': salary_count
     })
+
+
+@data.route('/get-db-data', methods=['GET'])
+def get_db_data():
+    try:
+        # Query all jobs and their related skills
+        jobs = Job.query.all()
+        skills_list = SkillsList.query.all()
+
+        # Format jobs data into a list of dictionaries
+        job_data = []
+        for job in jobs:
+            job_data.append({
+                'id': job.id,
+                'title': job.title,
+                'salary': job.salary,
+                'currency': job.currency,
+                'experience': job.experience,
+                'link': job.link,
+                'date': job.date,
+                'skills': [
+                    {'id': skill.id, 'name': skill.name, 'counter': skill.counter}
+                    for skill in job.skills
+                ]
+            })
+
+        # Format skills list into a separate list of dictionaries
+        skills_data = [{'id': skill.id, 'name': skill.name} for skill in skills_list]
+
+        # Return JSON response
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'jobs': job_data,
+                'skills_list': skills_data
+            }
+        }), 200
+
+    except Exception as e:
+        # Handle errors
+        return jsonify({'status': 'error', 'message': str(e)}), 500
