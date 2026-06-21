@@ -1,7 +1,43 @@
-const axios = require('axios');
-
 const { deleteService } = require('./serviceDiscoveryGrpc');
 const { response } = require('express');
+
+const http = require('http');
+const https = require('https');
+
+function httpRequest({ method, url, data = null, timeout }) {
+    return new Promise((resolve, reject) => {
+        const parsed = new URL(url);
+        const lib = parsed.protocol === 'https:' ? https : http;
+        const payload = data != null ? JSON.stringify(data) : null;
+        const options = { method: (method || 'get').toUpperCase(), headers: {} };
+        if (payload != null) {
+            options.headers['Content-Type'] = 'application/json';
+            options.headers['Content-Length'] = Buffer.byteLength(payload);
+        }
+        const req = lib.request(parsed, options, (res) => {
+            let chunks = '';
+            res.on('data', (c) => { chunks += c; });
+            res.on('end', () => {
+                let body = chunks;
+                try { body = chunks ? JSON.parse(chunks) : null; } catch (_) {}
+                const result = { status: res.statusCode, data: body, headers: res.headers };
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve(result);
+                } else {
+                    const error = new Error(`Request failed with status ${res.statusCode}`);
+                    error.response = result;
+                    reject(error);
+                }
+            });
+        });
+        if (timeout) {
+            req.setTimeout(timeout, () => req.destroy(new Error(`timeout of ${timeout}ms exceeded`)));
+        }
+        req.on('error', reject);
+        if (payload != null) req.write(payload);
+        req.end();
+    });
+}
 
 
 const TASK_TIMEOUT_LIMIT = 5000;
@@ -12,10 +48,10 @@ async function makeServiceCall(serviceName, serviceAddress, servicePort, api, me
 
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            response = await axios({ 
-                method: method, 
-                url: url, 
-                data: data, 
+            response = await httpRequest({
+                method: method,
+                url: url,
+                data: data,
                 //timeout: TASK_TIMEOUT_LIMIT
             });
             return response;  // Return the response if the call is successful
